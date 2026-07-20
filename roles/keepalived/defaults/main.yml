@@ -1,0 +1,6 @@
+---
+# Interface the VIP attaches to. Auto-detected from the host's default route.
+# This is a role default (the LOWEST precedence), so setting
+# keepalived_interface anywhere else — inventory, group_vars, host_vars —
+# always wins over it.
+keepalived_interface: "{{ ansible_default_ipv4.interface }}"

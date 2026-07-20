@@ -27,8 +27,9 @@ postgres_bin_dir: "{{ postgres_paths[ansible_os_family].bin_dir }}"
 postgres_data_dir: "{{ postgres_data_dir_override | default(postgres_paths[ansible_os_family].data_dir, true) }}"
 postgres_data_parent: "{{ postgres_paths[ansible_os_family].data_parent }}"
 
-# Subnet allowed in pg_hba for replication + client auth. Covers all nodes.
-pg_hba_subnet: 172.15.100.0/24
+# Subnet allowed in pg_hba for replication + client auth. MUST cover every
+# node's IP in inventory/hosts.yml, or replicas will be refused by the leader.
+pg_hba_subnet: 172.31.100.0/24
 
 # ---- etcd -------------------------------------------------------------
 etcd_cluster_token: pg-etcd-cluster
@@ -38,11 +39,11 @@ etcd_version: "3.5.16"           # tarball version used on Ubuntu
 etcd_arch: amd64                 # arm64 on ARM / Graviton hosts
 
 # ---- Keepalived / VIP -------------------------------------------------
-vip_address: 172.15.100.17
-vrrp_router_id: 91               # unique per VRRP domain on the LAN
-vrrp_auth_pass: change_me_vrrp   # <= CHANGE ME
-# Interface the VIP floats on. Auto-detected; override if you have several NICs.
-keepalived_interface: "{{ ansible_default_ipv4.interface }}"
+# vip_address / vrrp_router_id / vrrp_auth_pass now live in inventory/hosts.yml
+# under the `haproxy` group, next to the hosts the VIP floats between.
+# They MUST NOT be set here as well: a value in group_vars/all.yml outranks an
+# inventory group var, so it would silently override whatever you put there.
+# The keepalived_interface fallback lives in roles/keepalived/defaults/main.yml.
 
 # ---- Ports ------------------------------------------------------------
 port_rw: 5000        # read-write  -> current leader

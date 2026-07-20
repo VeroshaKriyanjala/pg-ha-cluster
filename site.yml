@@ -1,0 +1,47 @@
+---
+# =====================================================================
+#  PostgreSQL 16 HA cluster — Patroni + etcd + HAProxy + Keepalived
+#
+#  Run:  ansible-playbook site.yml
+#
+#  Order matters:
+#    1. base setup (packages, firewall, SELinux, data-disk mount)
+#    2. etcd quorum (the DCS Patroni relies on)
+#    3. PostgreSQL 16 install
+#    4. Patroni bootstrap (auto-tuned from each host's server_specs)
+#    5. HAProxy + Keepalived load-balancer tier
+#
+#  Works on RHEL/Rocky/Alma 9 and Ubuntu 20.04/22.04/24.04 — every role
+#  branches on ansible_os_family, so a mixed inventory is fine.
+# =====================================================================
+
+- name: Base setup on every host
+  hosts: all
+  become: true
+  roles:
+    - common
+
+- name: Bring up the etcd cluster (DCS)
+  hosts: pgcluster
+  become: true
+  roles:
+    - etcd
+
+- name: Install PostgreSQL
+  hosts: pgcluster
+  become: true
+  roles:
+    - postgresql
+
+- name: Install and bootstrap Patroni
+  hosts: pgcluster
+  become: true
+  roles:
+    - patroni
+
+- name: Configure the HAProxy + Keepalived load-balancer tier
+  hosts: haproxy
+  become: true
+  roles:
+    - haproxy
+    - keepalived

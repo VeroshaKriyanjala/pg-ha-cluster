@@ -1,0 +1,9 @@
+---
+patroni_venv: /opt/patroni/venv
+patroni_config_dir: /etc/patroni
+patroni_config_file: /etc/patroni/patroni.yml
+
+# Self-signed TLS material (only used when patroni_enable_ssl is true).
+patroni_ssl_cert: /etc/patroni/server.crt
+patroni_ssl_key: /etc/patroni/server.key
+patroni_ssl_subject: "/C=US/O=pg-ha-cluster/CN={{ ansible_host }}"

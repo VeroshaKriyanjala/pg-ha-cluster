@@ -1,0 +1,95 @@
+---
+# =====================================================================
+#  Central configuration — the main file you edit.
+#  (Per-host hardware lives in inventory/hosts.yml -> server_specs.)
+# =====================================================================
+
+# ---- Cluster identity -------------------------------------------------
+patroni_scope: pg-cluster        # logical cluster name (patronictl scope)
+patroni_namespace: /service      # key prefix inside etcd
+
+# ---- PostgreSQL version + per-OS paths --------------------------------
+postgres_version: 16
+
+# Paths differ between RHEL and Debian families; indexed by ansible_os_family.
+postgres_paths:
+  RedHat:
+    bin_dir: "/usr/pgsql-{{ postgres_version }}/bin"
+    data_dir: "/var/lib/pgsql/{{ postgres_version }}/data"
+    data_parent: "/var/lib/pgsql"
+  Debian:
+    bin_dir: "/usr/lib/postgresql/{{ postgres_version }}/bin"
+    data_dir: "/var/lib/postgresql/{{ postgres_version }}/main"
+    data_parent: "/var/lib/postgresql"
+
+postgres_bin_dir: "{{ postgres_paths[ansible_os_family].bin_dir }}"
+# Set postgres_data_dir_override to force a specific PGDATA on every node.
+postgres_data_dir: "{{ postgres_data_dir_override | default(postgres_paths[ansible_os_family].data_dir, true) }}"
+postgres_data_parent: "{{ postgres_paths[ansible_os_family].data_parent }}"
+
+# Subnet allowed in pg_hba for replication + client auth. Covers all nodes.
+pg_hba_subnet: 172.15.100.0/24
+
+# ---- etcd -------------------------------------------------------------
+etcd_cluster_token: pg-etcd-cluster
+# RHEL family installs this RPM (PGDG). Ubuntu builds from the tarball below.
+etcd_rpm_url: "https://ftp.postgresql.org/pub/repos/yum/common/pgdg-rhel9-extras/redhat/rhel-9-x86_64/etcd-3.5.11-1PGDG.rhel9.x86_64.rpm"
+etcd_version: "3.5.16"           # tarball version used on Ubuntu
+etcd_arch: amd64                 # arm64 on ARM / Graviton hosts
+
+# ---- Keepalived / VIP -------------------------------------------------
+vip_address: 172.15.100.17
+vrrp_router_id: 91               # unique per VRRP domain on the LAN
+vrrp_auth_pass: change_me_vrrp   # <= CHANGE ME
+# Interface the VIP floats on. Auto-detected; override if you have several NICs.
+keepalived_interface: "{{ ansible_default_ipv4.interface }}"
+
+# ---- Ports ------------------------------------------------------------
+port_rw: 5000        # read-write  -> current leader
+port_ro: 6000        # read-only   -> replicas (round-robin)
+port_stats: 7000     # HAProxy stats web page
+port_patroni: 8008   # Patroni REST API (health checks)
+port_pg: 5432        # PostgreSQL
+port_etcd_client: 2379
+port_etcd_peer: 2380
+
+# ---- Credentials  =>  CHANGE THESE, then encrypt with ansible-vault ---
+postgres_superuser_password: "ChangeMe_SuperSecret"
+postgres_replication_password: "ChangeMe_ReplPass"
+postgres_rewind_password: "ChangeMe_RewindPass"
+
+# =====================================================================
+#  PostgreSQL auto-tuning
+#  Derived on each node from its server_specs (cpu_cores + memory_mb).
+#  Tweak the fractions/caps here, or override any final GUC per-cluster
+#  via postgres_parameters_override, or per-host in host_vars.
+# =====================================================================
+postgres_max_connections: 200
+shared_buffers_fraction: 0.25    # shared_buffers        = 25% of RAM
+effective_cache_fraction: 0.75   # effective_cache_size  = 75% of RAM
+maintenance_work_mem_max_mb: 2048
+wal_buffers_max_mb: 16
+work_mem_min_kb: 4096            # 4 MB floor
+
+# Static replication / logging parameters (same on every node).
+postgres_base_parameters:
+  wal_level: replica
+  hot_standby: "on"
+  max_wal_senders: 10
+  max_replication_slots: 10
+  wal_log_hints: "on"
+  wal_keep_size: "1GB"
+  checkpoint_completion_target: 0.9
+  log_rotation_size: "100MB"
+
+# Highest-precedence overrides, merged last into the final parameter set.
+# e.g.  postgres_parameters_override: { random_page_cost: 1.1, jit: "off" }
+postgres_parameters_override: {}
+
+# ---- Feature toggles --------------------------------------------------
+patroni_enable_ssl: true         # self-signed certs generated per node
+patroni_watchdog_enabled: true   # softdog guard against split-brain
+manage_firewall: true            # firewalld (RHEL) / ufw (Ubuntu)
+manage_selinux: true             # RHEL only
+selinux_state: permissive        # permissive | disabled | enforcing
+manage_sysctl: true              # ip_forward / ip_nonlocal_bind on LB tier

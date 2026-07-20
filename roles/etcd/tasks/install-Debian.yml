@@ -1,0 +1,35 @@
+---
+# Ubuntu — no maintained etcd package for a clustered setup, so install the
+# upstream release binaries and deploy a matching systemd unit that reads the
+# same /etc/etcd/etcd.conf environment file used on RHEL.
+- name: Download etcd release tarball
+  ansible.builtin.get_url:
+    url: "https://github.com/etcd-io/etcd/releases/download/v{{ etcd_version }}/etcd-v{{ etcd_version }}-linux-{{ etcd_arch }}.tar.gz"
+    dest: "/tmp/etcd-{{ etcd_version }}.tar.gz"
+    mode: "0644"
+
+- name: Extract etcd tarball
+  ansible.builtin.unarchive:
+    src: "/tmp/etcd-{{ etcd_version }}.tar.gz"
+    dest: /tmp
+    remote_src: true
+    creates: "/tmp/etcd-v{{ etcd_version }}-linux-{{ etcd_arch }}/etcd"
+
+- name: Install etcd binaries
+  ansible.builtin.copy:
+    src: "/tmp/etcd-v{{ etcd_version }}-linux-{{ etcd_arch }}/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - etcd
+    - etcdctl
+
+- name: Deploy etcd systemd unit
+  ansible.builtin.template:
+    src: etcd.service.j2
+    dest: /etc/systemd/system/etcd.service
+    mode: "0644"
+  notify: Restart etcd

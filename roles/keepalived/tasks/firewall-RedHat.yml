@@ -1,0 +1,8 @@
+---
+# Keepalived uses unicast VRRP (IP protocol 112) between the two LB nodes.
+- name: Allow the VRRP protocol through firewalld
+  ansible.posix.firewalld:
+    rich_rule: 'rule protocol value="vrrp" accept'
+    permanent: true
+    immediate: true
+    state: enabled

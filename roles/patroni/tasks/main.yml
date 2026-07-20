@@ -1,0 +1,92 @@
+---
+- name: Compute PostgreSQL parameters from server_specs
+  ansible.builtin.include_tasks: tune.yml
+
+- name: Create the Patroni config directory
+  ansible.builtin.file:
+    path: "{{ patroni_config_dir }}"
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: "0750"
+
+- name: Install Patroni into an isolated virtualenv
+  ansible.builtin.pip:
+    name:
+      - "patroni[etcd3]"
+      - psycopg2-binary
+    virtualenv: "{{ patroni_venv }}"
+    virtualenv_command: python3 -m venv
+    state: present
+
+- name: Generate TLS certificates
+  ansible.builtin.include_tasks: certs.yml
+  when: patroni_enable_ssl | bool
+
+- name: Deploy patroni.yml
+  ansible.builtin.template:
+    src: patroni.yml.j2
+    dest: "{{ patroni_config_file }}"
+    owner: postgres
+    group: postgres
+    mode: "0640"
+  notify: Restart patroni
+
+# ---- Software watchdog (guards against split-brain) ------------------
+- name: Configure the software watchdog
+  when: patroni_watchdog_enabled | bool
+  block:
+    - name: Load the softdog kernel module now
+      community.general.modprobe:
+        name: softdog
+        state: present
+      failed_when: false
+
+    - name: Load softdog on boot
+      ansible.builtin.copy:
+        dest: /etc/modules-load.d/softdog.conf
+        content: "softdog\n"
+        mode: "0644"
+
+    - name: Let the postgres user access the watchdog device
+      ansible.builtin.copy:
+        dest: /etc/udev/rules.d/61-watchdog.rules
+        content: 'KERNEL=="watchdog", OWNER="postgres", GROUP="postgres", MODE="0600"'
+        mode: "0644"
+      failed_when: false
+
+# ---- systemd service --------------------------------------------------
+- name: Deploy the Patroni systemd unit
+  ansible.builtin.template:
+    src: patroni.service.j2
+    dest: /etc/systemd/system/patroni.service
+    mode: "0644"
+  notify: Restart patroni
+
+- name: Enable and start Patroni
+  ansible.builtin.systemd:
+    name: patroni
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Flush handlers so Patroni (re)starts before verification
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for the Patroni REST API to respond
+  ansible.builtin.wait_for:
+    host: "{{ ansible_host }}"
+    port: "{{ port_patroni }}"
+    timeout: 120
+
+- name: Wait until a cluster leader has been elected
+  ansible.builtin.uri:
+    url: "http://{{ ansible_host }}:{{ port_patroni }}/cluster"
+    return_content: true
+  register: patroni_cluster
+  retries: 30
+  delay: 5
+  until: >
+    patroni_cluster.status == 200 and
+    (patroni_cluster.json.members | selectattr('role', 'equalto', 'leader') | list | length) > 0
+  run_once: true

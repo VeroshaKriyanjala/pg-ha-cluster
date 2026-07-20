@@ -1,0 +1,15 @@
+# {{ ansible_managed }}
+# etcd environment file — consumed via EnvironmentFile= by the systemd unit
+# (the PGDG RPM unit on RHEL, and roles/etcd/templates/etcd.service.j2 on Ubuntu).
+ETCD_NAME="{{ etcd_name }}"
+ETCD_DATA_DIR="/var/lib/etcd"
+
+ETCD_LISTEN_PEER_URLS="http://{{ ansible_host }}:{{ port_etcd_peer }}"
+ETCD_LISTEN_CLIENT_URLS="http://{{ ansible_host }}:{{ port_etcd_client }},http://127.0.0.1:{{ port_etcd_client }}"
+
+ETCD_INITIAL_ADVERTISE_PEER_URLS="http://{{ ansible_host }}:{{ port_etcd_peer }}"
+ETCD_ADVERTISE_CLIENT_URLS="http://{{ ansible_host }}:{{ port_etcd_client }}"
+
+ETCD_INITIAL_CLUSTER="{% for h in groups['pgcluster'] %}{{ hostvars[h].etcd_name }}=http://{{ hostvars[h].ansible_host }}:{{ port_etcd_peer }}{% if not loop.last %},{% endif %}{% endfor %}"
+ETCD_INITIAL_CLUSTER_TOKEN="{{ etcd_cluster_token }}"
+ETCD_INITIAL_CLUSTER_STATE="new"

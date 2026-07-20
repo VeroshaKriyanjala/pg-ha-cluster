@@ -1,0 +1,22 @@
+---
+- name: Install PostgreSQL packages ({{ ansible_os_family }})
+  ansible.builtin.include_tasks: "install-{{ ansible_os_family }}.yml"
+
+# The postgres OS user is created by the packages above, so it is now safe to
+# hand it the data directory — including a freshly mounted data disk. Patroni
+# runs initdb into data_dir on first bootstrap; we only prepare ownership.
+- name: Ensure the PostgreSQL data parent is owned by postgres
+  ansible.builtin.file:
+    path: "{{ postgres_data_parent }}"
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: "0700"
+
+- name: Ensure the PostgreSQL data directory exists and is owned by postgres
+  ansible.builtin.file:
+    path: "{{ postgres_data_dir }}"
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: "0700"

@@ -1,0 +1,10 @@
+---
+# Firewall ports opened on the load-balancer nodes.
+firewall_tcp_ports:
+  - "{{ port_rw }}"
+  - "{{ port_ro }}"
+  - "{{ port_stats }}"
+
+# HAProxy sizing.
+haproxy_global_maxconn: 3000
+haproxy_server_maxconn: "{{ postgres_max_connections }}"

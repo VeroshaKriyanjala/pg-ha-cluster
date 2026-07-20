@@ -1,0 +1,44 @@
+# {{ ansible_managed }}
+global_defs {
+    router_id {{ inventory_hostname }}
+    enable_script_security
+    script_user root
+}
+
+# If HAProxy dies on this node, the tracked weight drops and the VIP fails over.
+vrrp_script chk_haproxy {
+    script "/usr/bin/killall -0 haproxy"
+    interval 2
+    weight 2
+    fall 2
+    rise 2
+}
+
+vrrp_instance VI_1 {
+    state {{ keepalived_state }}
+    interface {{ keepalived_interface }}
+    virtual_router_id {{ vrrp_router_id }}
+    priority {{ keepalived_priority }}
+    advert_int 1
+
+    authentication {
+        auth_type PASS
+        auth_pass {{ vrrp_auth_pass }}
+    }
+
+    # Unicast VRRP — works in clouds/VLANs where multicast is blocked.
+    unicast_src_ip {{ ansible_host }}
+    unicast_peer {
+{% for h in groups['haproxy'] if h != inventory_hostname %}
+        {{ hostvars[h].ansible_host }}
+{% endfor %}
+    }
+
+    virtual_ipaddress {
+        {{ vip_address }}
+    }
+
+    track_script {
+        chk_haproxy
+    }
+}

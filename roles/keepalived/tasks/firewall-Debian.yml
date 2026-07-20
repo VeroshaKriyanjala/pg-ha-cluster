@@ -1,0 +1,11 @@
+---
+# ufw (inactive by default on Ubuntu) has no keyword for the VRRP protocol.
+# If you enable ufw, add an iptables rule for IP protocol 112 between the LB
+# nodes, e.g.:
+#   iptables -A INPUT  -p vrrp -s <peer_ip> -j ACCEPT
+#   iptables -A OUTPUT -p vrrp -d <peer_ip> -j ACCEPT
+- name: Note VRRP firewall handling on Debian
+  ansible.builtin.debug:
+    msg: >-
+      ufw is inactive by default so VRRP flows freely. If you enable ufw,
+      add iptables rules for IP protocol 112 (vrrp) between the LB nodes.

@@ -1,0 +1,20 @@
+---
+- name: Install the PGDG repository RPM
+  ansible.builtin.dnf:
+    name: "{{ pgdg_rhel_repo_url | default('https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_64/pgdg-redhat-repo-latest.noarch.rpm') }}"
+    state: present
+    disable_gpg_check: true
+
+- name: Disable the built-in PostgreSQL dnf module
+  ansible.builtin.command: dnf -qy module disable postgresql
+  register: pg_module_disable
+  changed_when: false      # idempotent; repeated runs are harmless
+
+- name: Install PostgreSQL server packages (version {{ postgres_version }})
+  ansible.builtin.dnf:
+    name:
+      - "postgresql{{ postgres_version }}-server"
+      - "postgresql{{ postgres_version }}"
+      - "postgresql{{ postgres_version }}-contrib"
+    state: present
+# NB: no initdb here — Patroni bootstraps the data directory itself.

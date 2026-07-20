@@ -1,0 +1,29 @@
+---
+# Only runs when a host declares server_specs.storage.device.
+# Safe by design: community.general.filesystem will NOT reformat a device
+# that already carries a filesystem (force defaults to false).
+- name: Set data-disk facts
+  ansible.builtin.set_fact:
+    _pg_storage_device: "{{ server_specs.storage.device }}"
+    _pg_storage_fstype: "{{ server_specs.storage.fstype | default('xfs') }}"
+    _pg_storage_mount: "{{ server_specs.storage.mount | default(postgres_data_parent) }}"
+    _pg_storage_opts: "{{ server_specs.storage.opts | default('defaults,noatime') }}"
+
+- name: Create filesystem on the PostgreSQL data device
+  community.general.filesystem:
+    fstype: "{{ _pg_storage_fstype }}"
+    dev: "{{ _pg_storage_device }}"
+
+- name: Ensure the mount point directory exists
+  ansible.builtin.file:
+    path: "{{ _pg_storage_mount }}"
+    state: directory
+    mode: "0755"
+
+- name: Mount the PostgreSQL data volume (and persist in fstab)
+  ansible.posix.mount:
+    path: "{{ _pg_storage_mount }}"
+    src: "{{ _pg_storage_device }}"
+    fstype: "{{ _pg_storage_fstype }}"
+    opts: "{{ _pg_storage_opts }}"
+    state: mounted

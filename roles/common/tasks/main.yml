@@ -1,0 +1,40 @@
+---
+- name: Load OS-family variables
+  ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
+
+- name: Update apt cache (Debian family)
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  register: apt_update
+  retries: 5
+  delay: 10
+  until: apt_update is succeeded
+  when: ansible_os_family == 'Debian'
+
+- name: Install base prerequisites
+  ansible.builtin.package:
+    name: "{{ base_packages }}"
+    state: present
+
+- name: Add /etc/hosts entries for all cluster members
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '\s{{ item }}$'
+    line: "{{ hostvars[item].ansible_host }} {{ item }}"
+    state: present
+  loop: "{{ groups['all'] }}"
+
+- name: Configure SELinux (RHEL family)
+  ansible.builtin.include_tasks: selinux.yml
+  when:
+    - ansible_os_family == 'RedHat'
+    - manage_selinux | bool
+
+- name: Configure the host firewall
+  ansible.builtin.include_tasks: "firewall-{{ ansible_os_family }}.yml"
+  when: manage_firewall | bool
+
+- name: Provision the dedicated PostgreSQL data disk
+  ansible.builtin.include_tasks: storage.yml
+  when: (server_specs.storage.device | default('')) | length > 0

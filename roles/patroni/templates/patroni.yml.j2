@@ -1,0 +1,77 @@
+## {{ ansible_managed }}
+scope: {{ patroni_scope }}
+namespace: {{ patroni_namespace }}
+name: {{ patroni_name | default(inventory_hostname) }}
+
+restapi:
+  listen: {{ ansible_host }}:{{ port_patroni }}
+  connect_address: {{ ansible_host }}:{{ port_patroni }}
+
+etcd3:
+  hosts:
+{% for h in groups['pgcluster'] %}
+    - {{ hostvars[h].ansible_host }}:{{ port_etcd_client }}
+{% endfor %}
+
+bootstrap:
+  # Written to etcd ONCE, on first cluster init. Change later with:
+  #   patronictl -c {{ patroni_config_file }} edit-config
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 10
+    maximum_lag_on_failover: 1048576
+    postgresql:
+      use_pg_rewind: true
+      use_slots: true
+      parameters:
+{% for key, value in patroni_pg_parameters.items() | sort %}
+        {{ key }}: {{ value | to_json }}
+{% endfor %}
+
+  initdb:
+    - encoding: UTF8
+    - data-checksums
+
+  pg_hba:
+    - local all all peer
+    - host all all 127.0.0.1/32 md5
+    - host all all {{ pg_hba_subnet }} md5
+    - host replication replicator 127.0.0.1/32 md5
+    - host replication replicator {{ pg_hba_subnet }} md5
+
+postgresql:
+  listen: {{ ansible_host }}:{{ port_pg }}
+  connect_address: {{ ansible_host }}:{{ port_pg }}
+  data_dir: {{ postgres_data_dir }}
+  bin_dir: {{ postgres_bin_dir }}
+  pgpass: /tmp/pgpass
+  authentication:
+    superuser:
+      username: postgres
+      password: "{{ postgres_superuser_password }}"
+    replication:
+      username: replicator
+      password: "{{ postgres_replication_password }}"
+    rewind:
+      username: rewind_user
+      password: "{{ postgres_rewind_password }}"
+{% if patroni_enable_ssl | bool %}
+  parameters:
+    ssl: "on"
+    ssl_cert_file: {{ patroni_ssl_cert }}
+    ssl_key_file: {{ patroni_ssl_key }}
+{% endif %}
+{% if patroni_watchdog_enabled | bool %}
+
+watchdog:
+  mode: automatic
+  device: /dev/watchdog
+  safety_margin: 5
+{% endif %}
+
+tags:
+  nofailover: false
+  noloadbalance: false
+  clonefrom: false
+  nosync: false

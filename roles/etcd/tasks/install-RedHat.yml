@@ -1,0 +1,9 @@
+---
+# RHEL/Rocky/Alma 9 — install the PGDG etcd RPM (as in the guide).
+# The RPM ships /usr/bin/etcd, etcdctl and an etcd.service unit whose
+# ExecStart reads EnvironmentFile=/etc/etcd/etcd.conf.
+- name: Install etcd from the PGDG RPM
+  ansible.builtin.dnf:
+    name: "{{ etcd_rpm_url }}"
+    state: present
+    disable_gpg_check: true

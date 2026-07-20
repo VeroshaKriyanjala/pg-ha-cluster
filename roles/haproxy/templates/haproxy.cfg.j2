@@ -1,0 +1,47 @@
+# {{ ansible_managed }}
+global
+    maxconn {{ haproxy_global_maxconn }}
+    log 127.0.0.1 local2
+    stats socket /var/lib/haproxy/stats mode 660 level admin
+
+defaults
+    log     global
+    mode    tcp
+    retries 3
+    timeout queue   1m
+    timeout connect 10s
+    timeout client  31m
+    timeout server  31m
+    timeout check   10s
+    maxconn {{ haproxy_global_maxconn }}
+
+# ---- Stats web UI ------------------------------------------------------
+listen stats
+    mode http
+    bind *:{{ port_stats }}
+    stats enable
+    stats uri /
+    stats refresh 5s
+
+# ---- Read-write: routes ONLY to the current leader ---------------------
+# Patroni returns HTTP 200 on /primary for the leader, 503 otherwise.
+listen postgres_write
+    bind *:{{ port_rw }}
+    option httpchk GET /primary
+    http-check expect status 200
+    default-server inter 3s fall 3 rise 2 on-marked-down shutdown-sessions
+{% for h in groups['pgcluster'] %}
+    server {{ h }} {{ hostvars[h].ansible_host }}:{{ port_pg }} maxconn {{ haproxy_server_maxconn }} check port {{ port_patroni }}
+{% endfor %}
+
+# ---- Read-only: load-balances across healthy replicas ------------------
+# Patroni returns HTTP 200 on /replica for running replicas.
+listen postgres_read
+    bind *:{{ port_ro }}
+    option httpchk GET /replica
+    http-check expect status 200
+    balance roundrobin
+    default-server inter 3s fall 3 rise 2 on-marked-down shutdown-sessions
+{% for h in groups['pgcluster'] %}
+    server {{ h }} {{ hostvars[h].ansible_host }}:{{ port_pg }} maxconn {{ haproxy_server_maxconn }} check port {{ port_patroni }}
+{% endfor %}

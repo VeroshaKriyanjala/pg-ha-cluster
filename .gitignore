@@ -1,0 +1,15 @@
+# Installed Ansible collections (re-create with: ansible-galaxy collection install -r requirements.yml -p collections)
+collections/
+
+# Ansible runtime artifacts
+*.retry
+.ansible/
+*.log
+
+# Local vault password files / secrets
+vault_pass*
+.vault_pass*
+
+# Editor / OS cruft
+*.swp
+.DS_Store

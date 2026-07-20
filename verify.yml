@@ -1,0 +1,27 @@
+---
+# Quick post-deploy health check:  ansible-playbook verify.yml
+- name: Verify cluster health
+  hosts: pgcluster[0]
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Query Patroni cluster state
+      ansible.builtin.command: >
+        {{ patroni_venv | default('/opt/patroni/venv') }}/bin/patronictl
+        -c {{ patroni_config_file | default('/etc/patroni/patroni.yml') }} list -f json
+      register: patroni_state
+      changed_when: false
+
+    - name: Show cluster members
+      ansible.builtin.debug:
+        msg: "{{ patroni_state.stdout | from_json }}"
+
+    - name: Assert exactly one leader is running
+      ansible.builtin.assert:
+        that:
+          - (patroni_state.stdout | from_json
+             | selectattr('Role', 'equalto', 'Leader')
+             | selectattr('State', 'equalto', 'running')
+             | list | length) == 1
+        success_msg: "Healthy: one running leader found."
+        fail_msg: "Unhealthy: leader count is not 1 — inspect patronictl list."

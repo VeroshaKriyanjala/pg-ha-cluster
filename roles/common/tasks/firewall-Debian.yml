@@ -1,0 +1,20 @@
+---
+# Ubuntu ships with ufw inactive, so these are additive allow-rules. We do
+# NOT run `ufw enable` here to avoid locking you out of SSH — enable it
+# yourself once you've confirmed the rules (and an OpenSSH allow) are correct.
+- name: Ensure ufw is installed
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+
+- name: Always keep SSH reachable
+  community.general.ufw:
+    rule: allow
+    name: OpenSSH
+
+- name: Allow TCP ports for this host's role
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop: "{{ firewall_tcp_ports | default([]) }}"

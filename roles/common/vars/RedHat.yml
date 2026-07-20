@@ -1,0 +1,8 @@
+---
+base_packages:
+  - python3
+  - python3-pip
+  - curl
+  - tar
+  - xfsprogs
+  - policycoreutils-python-utils

@@ -1,0 +1,22 @@
+---
+# The guide disables SELinux so Patroni/etcd/HAProxy aren't blocked.
+# Default here is 'permissive' (logs but never blocks) which is safer than a
+# full disable; set selinux_state: disabled in group_vars to match the guide.
+- name: Set SELinux state in config (persists across reboot)
+  ansible.posix.selinux:
+    state: "{{ selinux_state }}"
+  register: selinux_cfg
+
+- name: Set SELinux runtime mode to permissive now (no reboot needed)
+  ansible.builtin.command: setenforce 0
+  when:
+    - ansible_selinux.status is defined
+    - ansible_selinux.mode | default('') == 'enforcing'
+    - selinux_state in ['permissive', 'disabled']
+  changed_when: true
+  failed_when: false
+
+- name: Note if a reboot is required to fully apply SELinux state
+  ansible.builtin.debug:
+    msg: "SELinux set to '{{ selinux_state }}' in config — a reboot is required to reach that exact state."
+  when: selinux_cfg.reboot_required | default(false)

@@ -1,0 +1,34 @@
+---
+- name: Add the PGDG apt signing key
+  ansible.builtin.get_url:
+    url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    dest: /usr/share/keyrings/pgdg.asc
+    mode: "0644"
+
+- name: Add the PGDG apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/pgdg.asc] http://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main"
+    filename: pgdg
+    state: present
+
+- name: Install PostgreSQL server packages (version {{ postgres_version }})
+  ansible.builtin.apt:
+    name:
+      - "postgresql-{{ postgres_version }}"
+      - "postgresql-client-{{ postgres_version }}"
+      - libpq-dev
+    state: present
+    update_cache: true
+
+# The Debian package auto-creates and starts a default 'main' cluster.
+# Patroni must own PGDATA, so drop it and disable the packaged service.
+- name: Drop the package-created default cluster
+  ansible.builtin.command: "pg_dropcluster --stop {{ postgres_version }} main"
+  args:
+    removes: "/etc/postgresql/{{ postgres_version }}/main"
+
+- name: Disable the packaged postgresql service (Patroni manages Postgres)
+  ansible.builtin.systemd:
+    name: postgresql
+    enabled: false
+    state: stopped

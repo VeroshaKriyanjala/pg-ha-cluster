@@ -1,0 +1,48 @@
+---
+# =====================================================================
+#  Turn this host's server_specs (cpu_cores + memory_mb) into concrete
+#  PostgreSQL GUCs. Everything here is overridable:
+#    * change the fractions/caps in group_vars/all.yml, or
+#    * force any final value via postgres_parameters_override (merged last).
+# =====================================================================
+- name: Tuning — require server_specs on database nodes
+  ansible.builtin.assert:
+    that:
+      - server_specs.cpu_cores is defined
+      - server_specs.memory_mb is defined
+    fail_msg: >
+      Host {{ inventory_hostname }} is missing server_specs.cpu_cores /
+      server_specs.memory_mb — these drive PostgreSQL auto-tuning.
+
+- name: Tuning — capture CPU/memory inputs
+  ansible.builtin.set_fact:
+    _mem_mb: "{{ server_specs.memory_mb | int }}"
+    _cpus: "{{ server_specs.cpu_cores | int }}"
+
+- name: Tuning — derive resource parameters
+  ansible.builtin.set_fact:
+    _pg_auto:
+      max_connections: "{{ postgres_max_connections | int }}"
+      shared_buffers: "{{ (_mem_mb | int * shared_buffers_fraction) | int }}MB"
+      effective_cache_size: "{{ (_mem_mb | int * effective_cache_fraction) | int }}MB"
+      maintenance_work_mem: "{{ [(_mem_mb | int / 16) | int, maintenance_work_mem_max_mb | int] | min }}MB"
+      wal_buffers: "{{ [[((_mem_mb | int * shared_buffers_fraction) / 32) | int, 4] | max, wal_buffers_max_mb | int] | min }}MB"
+      work_mem: "{{ [((_mem_mb | int * shared_buffers_fraction * 1024) / (postgres_max_connections | int)) | int, work_mem_min_kb | int] | max }}kB"
+      effective_io_concurrency: 200
+      max_worker_processes: "{{ _cpus | int }}"
+      max_parallel_workers: "{{ _cpus | int }}"
+      max_parallel_workers_per_gather: "{{ [(_cpus | int / 2) | int, 1] | max }}"
+      max_parallel_maintenance_workers: "{{ [(_cpus | int / 2) | int, 1] | max }}"
+
+- name: Tuning — assemble the final parameter set
+  ansible.builtin.set_fact:
+    patroni_pg_parameters: >-
+      {{ postgres_base_parameters
+         | combine(_pg_auto)
+         | combine(postgres_parameters_override | default({}, true)) }}
+
+- name: Tuning — show the computed parameters for this node
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }} ({{ _cpus }} vCPU / {{ _mem_mb }} MB):
+      {{ patroni_pg_parameters }}

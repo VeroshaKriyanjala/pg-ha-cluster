@@ -1,0 +1,7 @@
+---
+# Firewall ports opened on the database / etcd nodes.
+firewall_tcp_ports:
+  - "{{ port_pg }}"
+  - "{{ port_patroni }}"
+  - "{{ port_etcd_client }}"
+  - "{{ port_etcd_peer }}"

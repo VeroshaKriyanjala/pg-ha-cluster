@@ -1,0 +1,29 @@
+---
+- name: Ensure openssl is installed
+  ansible.builtin.package:
+    name: openssl
+    state: present
+
+- name: Generate the PostgreSQL TLS private key
+  ansible.builtin.command:
+    cmd: "openssl genrsa -out {{ patroni_ssl_key }} 2048"
+    creates: "{{ patroni_ssl_key }}"
+
+- name: Generate a self-signed certificate
+  ansible.builtin.command:
+    cmd: >
+      openssl req -new -x509 -days 3650
+      -key {{ patroni_ssl_key }}
+      -out {{ patroni_ssl_cert }}
+      -subj "{{ patroni_ssl_subject }}"
+    creates: "{{ patroni_ssl_cert }}"
+
+- name: Lock down certificate ownership and permissions
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: postgres
+    group: postgres
+    mode: "0400"
+  loop:
+    - "{{ patroni_ssl_key }}"
+    - "{{ patroni_ssl_cert }}"

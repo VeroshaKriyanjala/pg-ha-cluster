@@ -1,0 +1,7 @@
+---
+# Install with:  ansible-galaxy collection install -r requirements.yml -p collections
+collections:
+  - name: ansible.posix        # firewalld, selinux, seboolean, sysctl, mount
+    version: ">=1.5.0"
+  - name: community.general    # filesystem, ufw
+    version: ">=7.0.0"

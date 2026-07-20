@@ -1,0 +1,11 @@
+---
+profile: production
+
+exclude_paths:
+  - collections/
+
+# Internal, role-local scratch variables use a leading underscore (a common
+# convention for "private" facts). We intentionally do not force a role-name
+# prefix on them, so silence just that sub-rule — everything else stays strict.
+skip_list:
+  - var-naming[no-role-prefix]

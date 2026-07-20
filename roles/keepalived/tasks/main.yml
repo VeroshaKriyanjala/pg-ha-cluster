@@ -1,0 +1,38 @@
+---
+- name: Install Keepalived (psmisc provides killall for the health check)
+  ansible.builtin.package:
+    name:
+      - keepalived
+      - psmisc
+    state: present
+
+- name: Enable IP forwarding and non-local bind (LB tier)
+  ansible.posix.sysctl:
+    name: "{{ item }}"
+    value: "1"
+    sysctl_set: true
+    state: present
+    reload: true
+  loop:
+    - net.ipv4.ip_forward
+    - net.ipv4.ip_nonlocal_bind
+  when: manage_sysctl | bool
+
+- name: Open the firewall for VRRP
+  ansible.builtin.include_tasks: "firewall-{{ ansible_os_family }}.yml"
+  when: manage_firewall | bool
+
+- name: Deploy Keepalived configuration
+  ansible.builtin.template:
+    src: keepalived.conf.j2
+    dest: /etc/keepalived/keepalived.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart keepalived
+
+- name: Enable and start Keepalived
+  ansible.builtin.systemd:
+    name: keepalived
+    state: started
+    enabled: true

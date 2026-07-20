@@ -218,8 +218,15 @@ Stopping HAProxy on the MASTER LB node moves the VIP to the BACKUP
 - **etcd on Ubuntu** installs upstream release binaries (`etcd_version`) into
   `/usr/local/bin`; on RHEL it installs the PGDG RPM (`etcd_rpm_url`). Both
   read the same `/etc/etcd/etcd.conf` environment file.
-- **SELinux** defaults to `permissive` (logs, never blocks) rather than a full
-  disable; set `selinux_state: disabled` to match the original guide exactly.
+- **SELinux** defaults to `enforcing` on the RHEL family. The `common` role also
+  applies what the cluster needs to survive it: the `haproxy_connect_any`
+  boolean and a `postgresql_db_t` label on the data directory (important when
+  PGDATA is on a freshly mounted disk). Use `selinux_state: permissive` to log
+  without blocking, or `disabled` to match the original guide.
+  If a node currently has SELinux fully disabled, going to `enforcing` needs a
+  **reboot** — the role schedules a `/.autorelabel` and tells you.
+  Debian/Ubuntu use **AppArmor**, so SELinux is skipped there unless you opt in
+  with `selinux_install_on_debian: true` (not recommended).
 - **Ubuntu firewall**: ufw is left *inactive* (rules are added but not enabled)
   to avoid locking out SSH. Enable it yourself once you've confirmed the rules,
   and add an iptables rule for the VRRP protocol between the LB nodes.

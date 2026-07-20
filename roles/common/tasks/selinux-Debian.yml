@@ -1,0 +1,50 @@
+---
+# Debian/Ubuntu ship AppArmor, not SELinux — so this whole file is opt-in via
+# selinux_install_on_debian. Enabling SELinux here replaces AppArmor and needs
+# a reboot + full filesystem relabel before it does anything.
+
+- name: Explain why SELinux is skipped on this OS
+  ansible.builtin.debug:
+    msg: >-
+      {{ ansible_distribution }} uses AppArmor, not SELinux, so SELinux
+      configuration is skipped. Set selinux_install_on_debian: true to install
+      and activate SELinux here anyway (requires a reboot + relabel).
+  when: not (selinux_install_on_debian | bool)
+
+- name: Install and activate SELinux on Debian/Ubuntu
+  when: selinux_install_on_debian | bool
+  block:
+    - name: Install SELinux packages
+      ansible.builtin.apt:
+        name:
+          - selinux-basics
+          - selinux-policy-default
+          - policycoreutils
+          - auditd
+        state: present
+        update_cache: true
+
+    - name: Activate SELinux (takes effect on next boot)
+      ansible.builtin.command: selinux-activate
+      register: selinux_activate
+      changed_when: "'activated' in selinux_activate.stdout | lower"
+      failed_when: selinux_activate.rc != 0
+
+    - name: Set the SELinux state in the config
+      ansible.posix.selinux:
+        state: "{{ selinux_state }}"
+      register: selinux_cfg_debian
+
+    - name: Schedule a full filesystem relabel for the next boot
+      ansible.builtin.file:
+        path: /.autorelabel
+        state: touch
+        mode: "0644"
+
+    - name: Warn that a reboot is required
+      ansible.builtin.debug:
+        msg: >-
+          SELinux was installed and set to '{{ selinux_state }}' on
+          {{ inventory_hostname }}. It is NOT active yet — reboot the node to
+          run the filesystem relabel, then re-run this playbook. Note this
+          replaces AppArmor and is not a supported Ubuntu configuration.

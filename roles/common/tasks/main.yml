@@ -25,11 +25,9 @@
     state: present
   loop: "{{ groups['all'] }}"
 
-- name: Configure SELinux (RHEL family)
-  ansible.builtin.include_tasks: selinux.yml
-  when:
-    - ansible_os_family == 'RedHat'
-    - manage_selinux | bool
+- name: Configure SELinux
+  ansible.builtin.include_tasks: "selinux-{{ ansible_os_family }}.yml"
+  when: manage_selinux | bool
 
 - name: Configure the host firewall
   ansible.builtin.include_tasks: "firewall-{{ ansible_os_family }}.yml"

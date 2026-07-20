@@ -1,0 +1,68 @@
+---
+# SELinux on RHEL/Rocky/Alma.
+#
+# Setting 'enforcing' is only safe if the cluster's files and ports carry the
+# right labels — otherwise SELinux silently blocks Patroni/PostgreSQL. This
+# file sets the state AND applies the labels/booleans needed to keep working.
+
+- name: Install SELinux management tooling
+  ansible.builtin.package:
+    name:
+      - policycoreutils-python-utils
+      - python3-libselinux
+      - python3-policycoreutils
+    state: present
+
+- name: Set the SELinux state in the config (persists across reboot)
+  ansible.posix.selinux:
+    state: "{{ selinux_state }}"
+  register: selinux_cfg
+
+# Going from a fully disabled SELinux straight to enforcing needs a reboot and
+# a full filesystem relabel — you cannot just setenforce 1. Flag the relabel so
+# the next boot fixes every label automatically.
+- name: Schedule a filesystem relabel when coming from a disabled SELinux
+  ansible.builtin.file:
+    path: /.autorelabel
+    state: touch
+    mode: "0644"
+  when:
+    - selinux_state == 'enforcing'
+    - ansible_selinux.status | default('disabled') == 'disabled'
+
+- name: Switch the running mode immediately (no reboot needed)
+  ansible.builtin.command: "setenforce {{ '1' if selinux_state == 'enforcing' else '0' }}"
+  when:
+    - ansible_selinux.status | default('disabled') == 'enabled'
+    - selinux_state in ['enforcing', 'permissive']
+    - ansible_selinux.mode | default('') != selinux_state
+  changed_when: true
+  failed_when: false
+
+# PGDATA must be labelled postgresql_db_t. This matters when the data directory
+# sits on a freshly mounted disk (a new filesystem arrives with no labels).
+- name: Label the PostgreSQL data directory
+  community.general.sefcontext:
+    target: "{{ postgres_data_parent }}(/.*)?"
+    setype: postgresql_db_t
+    state: present
+  when:
+    - selinux_state == 'enforcing'
+    - inventory_hostname in groups['pgcluster'] | default([])
+  register: pgdata_fcontext
+
+- name: Apply the PostgreSQL data directory labels
+  ansible.builtin.command: "restorecon -Rv {{ postgres_data_parent }}"
+  when: pgdata_fcontext is changed
+  changed_when: true
+
+- name: Report if a reboot is still required to reach the requested state
+  ansible.builtin.debug:
+    msg: >-
+      SELinux is set to '{{ selinux_state }}' in /etc/selinux/config, but a
+      REBOOT is required for it to take full effect (a filesystem relabel has
+      been scheduled). Reboot the node, then re-run this playbook.
+  when: >-
+    (selinux_cfg.reboot_required | default(false))
+    or (selinux_state == 'enforcing'
+        and ansible_selinux.status | default('disabled') == 'disabled')

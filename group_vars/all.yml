@@ -90,6 +90,15 @@ postgres_parameters_override: {}
 patroni_enable_ssl: true         # self-signed certs generated per node
 patroni_watchdog_enabled: true   # softdog guard against split-brain
 manage_firewall: true            # firewalld (RHEL) / ufw (Ubuntu)
-manage_selinux: true             # RHEL only
-selinux_state: permissive        # permissive | disabled | enforcing
+# ---- SELinux ----------------------------------------------------------
+# SELinux is a RHEL-family feature. Debian/Ubuntu use AppArmor instead, so the
+# Debian path is opt-in only (see selinux_install_on_debian below).
+manage_selinux: true
+# enforcing = fully enabled (blocks violations) | permissive = log only | disabled
+# The role also applies the file contexts/booleans the cluster needs so that
+# 'enforcing' does not break Patroni/PostgreSQL/HAProxy.
+selinux_state: enforcing
+# Install + activate SELinux on Debian/Ubuntu too. NOT recommended: it replaces
+# AppArmor, and needs a reboot plus a full filesystem relabel to take effect.
+selinux_install_on_debian: false
 manage_sysctl: true              # ip_forward / ip_nonlocal_bind on LB tier

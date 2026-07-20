@@ -135,6 +135,45 @@ one) and mounts it, persisted in `/etc/fstab`, at the PostgreSQL data parent
 `storage.mount`). **Omit the `storage` block entirely** and the role simply
 makes sure the data directory exists — provision disks however you like.
 
+## Try it locally first with Docker (no servers, no cost)
+
+A throwaway 4-container rig for checking the playbook end to end on your laptop.
+Each container runs **systemd as PID 1**, so the cluster's services are managed
+exactly as on a real VM — Ansible talks to them via `docker exec`, no SSH.
+
+```bash
+docker compose -f docker/docker-compose.yml up -d --build
+ansible-playbook -i inventory/docker_hosts.yml site.yml
+ansible-playbook -i inventory/docker_hosts.yml verify.yml
+```
+
+Then connect straight from your laptop (the HAProxy ports are published):
+
+```bash
+PGPASSWORD=ChangeMe_SuperSecret psql "host=127.0.0.1 port=5000 user=postgres dbname=postgres" \
+  -c "SELECT inet_server_addr(), pg_is_in_recovery();"   # writes -> leader  (f)
+PGPASSWORD=ChangeMe_SuperSecret psql "host=127.0.0.1 port=6000 user=postgres dbname=postgres" \
+  -c "SELECT inet_server_addr(), pg_is_in_recovery();"   # reads  -> replica (t)
+```
+
+Test a failover, then re-run the write query — it follows the new leader:
+
+```bash
+docker exec pgha-pg1 /opt/patroni/venv/bin/patronictl -c /etc/patroni/patroni.yml \
+  switchover --leader postgresql-03 --candidate postgresql-01 --force
+```
+
+Tear down with `docker compose -f docker/docker-compose.yml down -v`.
+
+[inventory/docker_hosts.yml](inventory/docker_hosts.yml) uses deliberately tiny
+specs (512 MB / 1 vCPU) and switches off what containers can't do — firewall,
+SELinux, sysctl, watchdog, floating VIP. Those overrides are set as **host
+vars**: Ansible ranks `group_vars/all.yml` *above* inventory group vars, so a
+group-level override there would be silently ignored.
+
+Requires the `community.docker` collection (`ansible-galaxy collection install
+community.docker -p collections`).
+
 ## Prerequisites
 
 - A control machine with `ansible-core` (>= 2.15).

@@ -4,6 +4,14 @@
 #  (Per-host hardware lives in inventory/hosts.yml -> server_specs.)
 # =====================================================================
 
+# ---- Node addressing --------------------------------------------------
+# node_ip is the address used for ALL internal cluster wiring (etcd peers,
+# Patroni, HAProxy backends). By default it is the same address Ansible SSHes
+# to. Override it per host when the two differ — e.g. on AWS (ansible_host =
+# public IP, node_ip = private IP) or in Docker (ansible_host = container name,
+# node_ip = the container's IP on the bridge network).
+node_ip: "{{ ansible_host }}"
+
 # ---- Cluster identity -------------------------------------------------
 patroni_scope: pg-cluster        # logical cluster name (patronictl scope)
 patroni_namespace: /service      # key prefix inside etcd
@@ -103,3 +111,4 @@ selinux_state: enforcing
 # AppArmor, and needs a reboot plus a full filesystem relabel to take effect.
 selinux_install_on_debian: false
 manage_sysctl: true              # ip_forward / ip_nonlocal_bind on LB tier
+enable_keepalived: true          # false where a VIP can't float (AWS, Docker)

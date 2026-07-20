@@ -31,7 +31,7 @@ listen postgres_write
     http-check expect status 200
     default-server inter 3s fall 3 rise 2 on-marked-down shutdown-sessions
 {% for h in groups['pgcluster'] %}
-    server {{ h }} {{ hostvars[h].ansible_host }}:{{ port_pg }} maxconn {{ haproxy_server_maxconn }} check port {{ port_patroni }}
+    server {{ h }} {{ hostvars[h].node_ip }}:{{ port_pg }} maxconn {{ haproxy_server_maxconn }} check port {{ port_patroni }}
 {% endfor %}
 
 # ---- Read-only: load-balances across healthy replicas ------------------
@@ -43,5 +43,5 @@ listen postgres_read
     balance roundrobin
     default-server inter 3s fall 3 rise 2 on-marked-down shutdown-sessions
 {% for h in groups['pgcluster'] %}
-    server {{ h }} {{ hostvars[h].ansible_host }}:{{ port_pg }} maxconn {{ haproxy_server_maxconn }} check port {{ port_patroni }}
+    server {{ h }} {{ hostvars[h].node_ip }}:{{ port_pg }} maxconn {{ haproxy_server_maxconn }} check port {{ port_patroni }}
 {% endfor %}

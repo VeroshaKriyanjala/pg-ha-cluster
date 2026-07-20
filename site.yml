@@ -42,6 +42,21 @@
 - name: Configure the HAProxy + Keepalived load-balancer tier
   hosts: haproxy
   become: true
-  roles:
-    - haproxy
-    - keepalived
+  tasks:
+    - name: Configure HAProxy
+      ansible.builtin.include_role:
+        name: haproxy
+
+    # Skipped when enable_keepalived is false; clients then connect straight to
+    # a HAProxy node instead of to the virtual IP.
+    #   * On AWS a VRRP VIP genuinely cannot work: the VPC only routes to IPs
+    #     registered on an ENI, so gratuitous ARP is ignored. Move the IP via
+    #     the AWS API, or front the LBs with an NLB, instead.
+    #   * In Docker it CAN work (a user-defined network is a normal Linux
+    #     bridge, and the containers are privileged). It is off only because the
+    #     default test rig runs a single HAProxy — a VIP needs two nodes to
+    #     float between. Add a second LB container and flip this on.
+    - name: Configure Keepalived (floating VIP)
+      ansible.builtin.include_role:
+        name: keepalived
+      when: enable_keepalived | default(true) | bool

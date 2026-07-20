@@ -75,13 +75,13 @@
 
 - name: Wait for the Patroni REST API to respond
   ansible.builtin.wait_for:
-    host: "{{ ansible_host }}"
+    host: "{{ node_ip }}"
     port: "{{ port_patroni }}"
     timeout: 120
 
 - name: Wait until a cluster leader has been elected
   ansible.builtin.uri:
-    url: "http://{{ ansible_host }}:{{ port_patroni }}/cluster"
+    url: "http://{{ node_ip }}:{{ port_patroni }}/cluster"
     return_content: true
   register: patroni_cluster
   retries: 30

@@ -21,8 +21,10 @@
   ansible.builtin.lineinfile:
     path: /etc/hosts
     regexp: '\s{{ item }}$'
-    line: "{{ hostvars[item].ansible_host }} {{ item }}"
+    line: "{{ hostvars[item].node_ip }} {{ item }}"
     state: present
+    # Docker bind-mounts /etc/hosts, which breaks Ansible's atomic replace.
+    unsafe_writes: true
   loop: "{{ groups['all'] }}"
 
 - name: Configure SELinux

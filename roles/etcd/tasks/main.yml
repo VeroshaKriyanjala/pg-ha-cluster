@@ -48,13 +48,13 @@
 
 - name: Wait for etcd client port to accept connections
   ansible.builtin.wait_for:
-    host: "{{ ansible_host }}"
+    host: "{{ node_ip }}"
     port: "{{ port_etcd_client }}"
     timeout: 60
 
 - name: Verify the etcd member list (once)
   ansible.builtin.command: >
-    etcdctl --endpoints=http://{{ ansible_host }}:{{ port_etcd_client }} member list
+    etcdctl --endpoints=http://{{ node_ip }}:{{ port_etcd_client }} member list
   environment:
     ETCDCTL_API: "3"
   register: etcd_members

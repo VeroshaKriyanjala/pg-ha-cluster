@@ -1,0 +1,92 @@
+---
+# =====================================================================
+#  LOCAL DOCKER TEST RIG — a throwaway cluster for checking the playbook.
+#
+#    docker compose -f docker/docker-compose.yml up -d --build
+#    ansible-playbook -i inventory/docker_hosts.yml site.yml
+#    ansible-playbook -i inventory/docker_hosts.yml verify.yml
+#    docker compose -f docker/docker-compose.yml down -v
+#
+#  Deliberately NOT the production settings in hosts.yml: tiny RAM/CPU, no
+#  data disks, and the host features that don't exist inside a container
+#  (firewall, SELinux, sysctl, watchdog, floating VIP) switched off.
+#
+#  ansible_host = the CONTAINER NAME (Ansible uses `docker exec`, no SSH)
+#  node_ip      = the container's IP on the pgha bridge network
+#
+#  WHY THE OVERRIDES ARE ON EACH HOST (and not in `all: vars:`):
+#  Ansible variable precedence is a fixed ranking, not last-one-wins:
+#      inventory group vars  <  group_vars/all.yml  <  inventory HOST vars
+#  So anything group_vars/all.yml defines (manage_firewall, pg_hba_subnet, …)
+#  would silently beat an inventory group var. Host vars outrank it, so the
+#  shared block below is merged into every host via the &container_env anchor.
+# =====================================================================
+all:
+  vars:
+    # Connection settings — not defined in group_vars, so no conflict here.
+    ansible_connection: community.docker.docker
+    ansible_become: false          # we are already root inside the container
+    ansible_python_interpreter: /usr/bin/python3
+
+  children:
+
+    pgcluster:
+      hosts:
+        pg1:
+          ansible_host: pgha-pg1
+          node_ip: 172.28.0.11
+          etcd_name: etcd1
+          patroni_name: postgresql-01
+          server_specs: {cpu_cores: 1, memory_mb: 512}
+          # Shared container overrides — defined once, reused below.
+          <<: &container_env
+            manage_firewall: false         # no netfilter to manage in here
+            manage_selinux: false          # not an Ubuntu thing anyway
+            manage_sysctl: false           # sysctls belong to the host
+            patroni_watchdog_enabled: false  # can't load kernel modules
+            enable_keepalived: true        # works fine here: a normal Linux bridge
+            pg_hba_subnet: 172.28.0.0/24   # MUST cover the node_ips below
+            postgres_max_connections: 100  # small cluster, modest limit
+
+        pg2:
+          <<: *container_env
+          ansible_host: pgha-pg2
+          node_ip: 172.28.0.12
+          etcd_name: etcd2
+          patroni_name: postgresql-02
+          server_specs: {cpu_cores: 1, memory_mb: 512}
+
+        pg3:
+          <<: *container_env
+          ansible_host: pgha-pg3
+          node_ip: 172.28.0.13
+          etcd_name: etcd3
+          patroni_name: postgresql-03
+          server_specs: {cpu_cores: 1, memory_mb: 512}
+
+    haproxy:
+      # The floating VIP. NOT a container — an address that lives on whichever
+      # LB below is MASTER, and moves to the other if its HAProxy dies.
+      # 172.28.0.17 is free (all containers use static IPs), and your host
+      # routes to this subnet, so you can reach it directly from a terminal.
+      vars:
+        vip_address: 172.28.0.17
+        vrrp_router_id: 91
+        vrrp_auth_pass: docker_test_pass
+
+      hosts:
+        lb1:
+          <<: *container_env
+          ansible_host: pgha-lb1
+          node_ip: 172.28.0.18
+          keepalived_state: MASTER
+          keepalived_priority: 101
+          server_specs: {cpu_cores: 1, memory_mb: 256}
+
+        lb2:
+          <<: *container_env
+          ansible_host: pgha-lb2
+          node_ip: 172.28.0.19
+          keepalived_state: BACKUP
+          keepalived_priority: 100
+          server_specs: {cpu_cores: 1, memory_mb: 256}

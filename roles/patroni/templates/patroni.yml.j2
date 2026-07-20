@@ -4,13 +4,13 @@ namespace: {{ patroni_namespace }}
 name: {{ patroni_name | default(inventory_hostname) }}
 
 restapi:
-  listen: {{ ansible_host }}:{{ port_patroni }}
-  connect_address: {{ ansible_host }}:{{ port_patroni }}
+  listen: {{ node_ip }}:{{ port_patroni }}
+  connect_address: {{ node_ip }}:{{ port_patroni }}
 
 etcd3:
   hosts:
 {% for h in groups['pgcluster'] %}
-    - {{ hostvars[h].ansible_host }}:{{ port_etcd_client }}
+    - {{ hostvars[h].node_ip }}:{{ port_etcd_client }}
 {% endfor %}
 
 bootstrap:
@@ -41,8 +41,8 @@ bootstrap:
     - host replication replicator {{ pg_hba_subnet }} md5
 
 postgresql:
-  listen: {{ ansible_host }}:{{ port_pg }}
-  connect_address: {{ ansible_host }}:{{ port_pg }}
+  listen: {{ node_ip }}:{{ port_pg }}
+  connect_address: {{ node_ip }}:{{ port_pg }}
   data_dir: {{ postgres_data_dir }}
   bin_dir: {{ postgres_bin_dir }}
   pgpass: /tmp/pgpass

@@ -27,10 +27,10 @@ vrrp_instance VI_1 {
     }
 
     # Unicast VRRP — works in clouds/VLANs where multicast is blocked.
-    unicast_src_ip {{ ansible_host }}
+    unicast_src_ip {{ node_ip }}
     unicast_peer {
 {% for h in groups['haproxy'] if h != inventory_hostname %}
-        {{ hostvars[h].ansible_host }}
+        {{ hostvars[h].node_ip }}
 {% endfor %}
     }
 

@@ -150,9 +150,9 @@ ansible-playbook -i inventory/docker_hosts.yml verify.yml
 Then connect straight from your laptop (the HAProxy ports are published):
 
 ```bash
-PGPASSWORD=ChangeMe_SuperSecret psql "host=127.0.0.1 port=5000 user=postgres dbname=postgres" \
+PGPASSWORD=postgres psql "host=127.0.0.1 port=5000 user=postgres dbname=postgres" \
   -c "SELECT inet_server_addr(), pg_is_in_recovery();"   # writes -> leader  (f)
-PGPASSWORD=ChangeMe_SuperSecret psql "host=127.0.0.1 port=6000 user=postgres dbname=postgres" \
+PGPASSWORD=postgres psql "host=127.0.0.1 port=6000 user=postgres dbname=postgres" \
   -c "SELECT inet_server_addr(), pg_is_in_recovery();"   # reads  -> replica (t)
 ```
 

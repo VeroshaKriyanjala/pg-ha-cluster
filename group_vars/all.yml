@@ -63,9 +63,9 @@ port_etcd_client: 2379
 port_etcd_peer: 2380
 
 # ---- Credentials  =>  CHANGE THESE, then encrypt with ansible-vault ---
-postgres_superuser_password: "ChangeMe_SuperSecret"
-postgres_replication_password: "ChangeMe_ReplPass"
-postgres_rewind_password: "ChangeMe_RewindPass"
+postgres_superuser_password: "postgres"
+postgres_replication_password: "postgres"
+postgres_rewind_password: "postgres"
 
 # =====================================================================
 #  PostgreSQL auto-tuning
